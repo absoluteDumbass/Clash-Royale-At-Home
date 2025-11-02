@@ -1,0 +1,130 @@
+@font-face {
+  /*font-family: Mario; 
+    src: url('marioFont.ttf');*/
+}
+
+:root {
+  --fat-font-size: 2.5em;
+  --def-font-size: 1.2em;
+  --small-font-size: 0.8em;
+  --border-color: #000;
+  --primary: #596;
+  --secondary: #464;
+}
+
+.canvas-body {
+  position: fixed;
+  top: 50%;
+  transform: translate(0, -50%);
+  right: 1vw;
+  max-width: 45vw;
+  max-height: 45vw;
+}
+
+#ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  padding-top: 30px;
+  text-align: center;
+  width: 50vw;
+  height: 60vh;
+  background: var(--primary);
+  border: 3px solid #6b69;
+}
+
+#info {
+  width: 50vw;
+  background: var(--primary);
+  border: 2px solid #6b69;
+  padding: 10px;
+  position: relative;
+}
+
+.deep {
+  display: flex;
+  background: #6b64;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 2px solid #0001;
+}
+
+.horizontal {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.restrain {
+  max-width: 70%;
+  min-height: 5em;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  padding: 8px;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden; /* Ensure that the pseudo-element doesn't overflow */
+  /*-webkit-text-stroke: 0.5px white;
+    -webkit-text-fill-color: black;*/
+
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--secondary);
+  background-size: cover;
+  background-position: center;
+  z-index: -1; /* Ensure it is behind the content */
+}
+
+p {
+  color: white;
+  margin: 0.5vh;
+  font-size: var(--def-font-size);
+  text-shadow: -1px 1px 0 var(--border-color), 1px 1px 0 var(--border-color),
+    1px -1px 0 var(--border-color), -1px -1px 0 var(--border-color);
+}
+
+button {
+  display: block;
+  color: white;
+  margin: 5px;
+  font-size: var(--def-font-size);
+  text-shadow: -1px 1px 0 var(--border-color), 1px 1px 0 var(--border-color),
+    1px -1px 0 var(--border-color), -1px -1px 0 var(--border-color);
+}
+
+.fat {
+  font-size: var(--fat-font-size);
+  /* text-shadow: -1 1 0 var(--border-color),
+                1 1 0 var(--border-color),
+                1 -1 0 var(--border-color),
+                -1 -1 0 var(--border-color);*/
+  margin: 0.5vh;
+}
+
+.small {
+  font-size: var(--small-font-size);
+  text-shadow: -0.5px 0.5px 0 var(--border-color), 1px 1px 0 var(--border-color),
+    0.5px -0.5px 0 var(--border-color), -0.5px -0.5px 0 var(--border-color);
+}
+
+#avatar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+}
