@@ -1,4 +1,8 @@
+import "https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js";
+import { gameloop, cardsData } from "../physics/index.js";
+import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js"
 const socket = io();
+
 let loaded = false;
 let user = {};
 const UIdiv = document.getElementById("ui");
@@ -6,7 +10,6 @@ let match = {};
 const gridSize = 22; // canonically 210 X and 210 Y, 10x 10y each tile
 let displaySize = 0;
 let isPlaying = false;
-let cardsData = {};
 let selected = 0;
 
 const randomFacts = [
@@ -125,14 +128,12 @@ socket.on("loginAgain", () => {
 socket.on("userData", (syncData) => {
   console.log(syncData);
   user = syncData.user;
-  cardsData = syncData.cardsData;
   match = syncData.match;
 
   document.getElementById("avatar").src = user.avatarUrl;
   document.getElementById(
     "greeting"
   ).innerText = `Greetings, ${user.username}!`;
-  //document.getElementById('discord-id').innerText = `Your Discord ID: ${user.id}`;
   document.getElementById("account-age").innerHTML = `Year 0 of playing!`;
   document.getElementById(
     "total-playtime"
@@ -167,11 +168,16 @@ socket.on("matchStarted", (m) => {
   }
 })
 
+let gameInterval = 0
 socket.on("gamestate", (m, personal) => {
   match = m;
   user.game = personal;
   isPlaying = true;
   showGamestate();
+  gameInterval = setInterval(() => {
+    //gameloop();
+    draw();
+  }, 100);
 });
 
 let interval = 0; // nothing yet
@@ -215,7 +221,7 @@ function draw() {
   if (windowWidth < windowHeight) return;
   if (!loaded) return;
   frameRate(0);
-  let s = displaySize / gridSize;
+  let s = displaySize / gridSize; // standard size
   stroke("rgba(0, 0, 0, 0.05)");
   for (let x = 0; x < gridSize; x++) {
     for (let y = 0; y < gridSize; y++) {
@@ -226,12 +232,20 @@ function draw() {
       square(x * s, y * s, s);
     }
   }
+  let sa = 1 * displaySize / gridSize / 10; // stardard adjusted size. game coord to absolute coord
+
+  for (let i = 0; i < match.objects.length; i++) {
+    const object = match.objects[i];
+    const card = cardsData[object.id];
+    fill(card.color);
+    square(object.x * sa, object.y * sa, s*card.size);
+  }
 }
 
 function mouseClicked() {
   if (mouseX < 0) return;
-  const clickedX = Math.floor((mouseX / windowHeight) * gridSize)*10;
-  const clickedY = Math.floor((mouseY / windowHeight) * gridSize)*10;
+  const clickedX = Math.floor((mouseX / displaySize) * gridSize)*10;
+  const clickedY = Math.floor((mouseY / displaySize) * gridSize)*10;
 
   console.log(`Clicked at (${clickedX}, ${clickedY})`);
   socket.emit("useElixir", user.game.cards[selected], clickedX, clickedY);

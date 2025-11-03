@@ -1,18 +1,26 @@
-const express = require("express");
-const os = require("os");
-const http = require("http");
-const socketIo = require("socket.io");
-const passport = require("passport");
-const session = require("express-session");
-const Strategy = require("passport-discord").Strategy;
-const path = require("path");
-const sql = require("connect-sqlite3")(session);
-const cfg = require("./config.json");
-require("dotenv").config();
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import passport from "passport";
+import { Strategy } from "passport-discord";
+import session from "express-session";
+import os from "os";
+import path from "path";
+import { JSONFilePreset } from "lowdb/node";
+import lowdbStore from "connect-lowdb";
+import fs from "fs";
+import { fileURLToPath } from 'url';
+import { cardsData, gameloop } from "./physics/index.js";
+import dotenv from "dotenv";
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const cfg = JSON.parse(fs.readFileSync("./config.json"));
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
 // Configure Passport
 passport.use(
@@ -33,16 +41,19 @@ passport.use(
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
+
+
 const sessionMiddleware = session({
   secret: process.env.SECRET,
   resave: false,
   saveUninitialized: false,
-  store: new sql(),
+  store: redisStore,
 });
 app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use("/static", express.static(__dirname + "/public"));
+//app.use("/shared", express.static(__dirname + "/physics"));
 
 // Routes
 app.get("/", (req, res) => {
@@ -140,8 +151,7 @@ userlist = {
     }
 }
 */
-
-const cardsData = require("./physics/index.js");
+let loop = 0; // nothing lol
 
 let match = {
   players: ["0"],
@@ -174,8 +184,8 @@ const wrap = (middleware) => (socket, next) =>
 io.use(wrap(sessionMiddleware));
 io.use(wrap(passport.initialize()));
 io.use(wrap(passport.session()));
-io.use((socket, next) => {
-  if (socket.request.user || !userList[socket.request.user.id]) {
+io.use((socket, next) => {  
+  if (socket.request.user) {
     next();
   } else {
     next(new Error("unauthorized"));
@@ -207,7 +217,7 @@ io.on("connection", (socket) => {
     
   socket.on("requestUserData", () => {
     console.log(`[LOGIN] ${user.username} joined the lobby!`);
-    socket.emit("userData", { user, cardsData, match });
+    socket.emit("userData", { user, match });
   });
 
   socket.on("cheat", () => {
@@ -245,6 +255,9 @@ io.on("connection", (socket) => {
       userList[match.players[1]] = initialise(userList[match.players[1]], match);
       
       io.emit("matchStarted", match);
+      loop = setInterval(() => {
+        gameloop(match, userList);
+      }, 100)
       console.log(`[START] Match started!`);
     } else {
       socket.emit("inMatchmaking");
