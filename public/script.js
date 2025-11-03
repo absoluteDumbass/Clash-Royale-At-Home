@@ -1,5 +1,6 @@
-import "https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js";
-import { gameloop, cardsData } from "../physics/index.js";
+import p5 from "https://esm.sh/p5@1.11.9";
+import gameloop from "../shared/gameloop.js";
+import cardsData from "../shared/cardsData.js";
 import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js"
 const socket = io();
 
@@ -11,6 +12,7 @@ const gridSize = 22; // canonically 210 X and 210 Y, 10x 10y each tile
 let displaySize = 0;
 let isPlaying = false;
 let selected = 0;
+let draw = true;
 
 const randomFacts = [
   `Nerf miner`,
@@ -148,7 +150,7 @@ socket.on("userData", (syncData) => {
     if (isPlaying) showGamestate();
   }
   loaded = true;
-  draw();
+  draw = true;
 });
 
 socket.on("message", (wordsOfWisdom) => {
@@ -174,9 +176,10 @@ socket.on("gamestate", (m, personal) => {
   user.game = personal;
   isPlaying = true;
   showGamestate();
-  gameInterval = setInterval(() => {
-    //gameloop();
-    draw();
+  if (gameInterval == 0) gameInterval = setInterval(() => {
+    match = gameloop(match, cardsData);
+    console.log("drawing")
+    draw = true;
   }, 100);
 });
 
@@ -187,69 +190,77 @@ function showGamestate() {
   const a = (id) => {
     return `${cardsData[id].display_name} (${cardsData[id].cost})`;
   }
-  
+
   UIset("gamestate", [match.usernames[opponent], elixir, a(user.game.cards[selected]), a(user.game.cards[0]), a(user.game.cards[1]), a(user.game.cards[2]), a(user.game.cards[3]), a(user.game.inCycle[0])]);
 
-  interval = setInterval(() => {
+  if (interval == 0) interval = setInterval(() => {
     showGamestate()
   }, 900);
 }
 
-function setup() {
-  let canvas = createCanvas(windowHeight, windowHeight);
-  canvas.parent("canvas");
-  console.log("Created Canvas");
-  displaySize =
-    windowHeight > windowWidth * 0.45 ? windowWidth * 0.45 : windowHeight;
-}
-function windowResized() {
-  displaySize =
-    windowHeight > windowWidth * 0.45 ? windowWidth * 0.45 : windowHeight;
-  resizeCanvas(displaySize, displaySize);
-  return;
-}
-function draw() {
-  background("#666666");
-  fill(255);
-  text("This is made for PC,", windowWidth / 2, windowHeight / 2 - 30);
-  text(
-    "unfortunately I ain't gonna add mobile support.",
-    windowWidth / 2,
-    windowHeight / 2
-  );
+const sketch = (p) => {
+  p.setup = () => {
+    let canvas = p.createCanvas(p.windowHeight, p.windowHeight);
+    canvas.parent("canvas");
+    console.log("Created Canvas");
+    displaySize =
+      p.windowHeight > p.windowWidth * 0.45 ? p.windowWidth * 0.45 : p.windowHeight;
+  }
+  p.windowResized = () => {
+    displaySize =
+      p.windowHeight > p.windowWidth * 0.45 ? p.windowWidth * 0.45 : p.windowHeight;
+    p.resizeCanvas(displaySize, displaySize);
+    draw = true;
+    return;
+  }
+  p.draw = () => {
+    if (draw) {
+      draw = false;
+    } else {
+      return;
+    }
+    p.background("#666666");
+    p.fill(255);
+    p.text("This is made for PC,", p.windowWidth / 2, p.windowHeight / 2 - 30);
+    p.text(
+      "unfortunately I ain't gonna add mobile support.",
+      p.windowWidth / 2,
+      p.windowHeight / 2
+    );
 
-  if (windowWidth < windowHeight) return;
-  if (!loaded) return;
-  frameRate(0);
-  let s = displaySize / gridSize; // standard size
-  stroke("rgba(0, 0, 0, 0.05)");
-  for (let x = 0; x < gridSize; x++) {
-    for (let y = 0; y < gridSize; y++) {
-      let c = color(130, 130, 130);
-      if (x == 0 || y == 0 || x == gridSize - 1 || y == gridSize - 1)
-        c = color(110, 110, 100);
-      fill(c);
-      square(x * s, y * s, s);
+    if (p.windowWidth < p.windowHeight) return;
+    if (!loaded) return;
+    let s = displaySize / gridSize; // standard size
+    p.stroke("rgba(0, 0, 0, 0.05)");
+    for (let x = 0; x < gridSize; x++) {
+      for (let y = 0; y < gridSize; y++) {
+        let c = p.color(130, 130, 130);
+        if (x == 0 || y == 0 || x == gridSize - 1 || y == gridSize - 1)
+          c = p.color(110, 110, 100);
+        p.fill(c);
+        p.square(x * s, y * s, s);
+      }
+    }
+    let sa = 1 * displaySize / gridSize / 10; // stardard adjusted size. game coord to absolute coord
+
+    for (let i = 0; i < match.objects.length; i++) {
+      const object = match.objects[i];
+      const card = cardsData[object.id];
+      p.fill(card.color);
+      p.square(object.x * sa, object.y * sa, s * card.size);
     }
   }
-  let sa = 1 * displaySize / gridSize / 10; // stardard adjusted size. game coord to absolute coord
 
-  for (let i = 0; i < match.objects.length; i++) {
-    const object = match.objects[i];
-    const card = cardsData[object.id];
-    fill(card.color);
-    square(object.x * sa, object.y * sa, s*card.size);
+  p.mouseClicked = () => {
+    if (p.mouseX < 0) return;
+    const clickedX = Math.floor((p.mouseX / displaySize) * gridSize) * 10;
+    const clickedY = Math.floor((p.mouseY / displaySize) * gridSize) * 10;
+
+    console.log(`Clicked at (${clickedX}, ${clickedY})`);
+    socket.emit("useElixir", user.game.cards[selected], clickedX, clickedY);
   }
-}
-
-function mouseClicked() {
-  if (mouseX < 0) return;
-  const clickedX = Math.floor((mouseX / displaySize) * gridSize)*10;
-  const clickedY = Math.floor((mouseY / displaySize) * gridSize)*10;
-
-  console.log(`Clicked at (${clickedX}, ${clickedY})`);
-  socket.emit("useElixir", user.game.cards[selected], clickedX, clickedY);
-}
+};
+const P5 = new p5(sketch);
 
 function UIset(mode, fillIn = []) {
   console.log(mode);

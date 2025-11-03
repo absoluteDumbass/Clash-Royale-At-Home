@@ -10,7 +10,8 @@ import { JSONFilePreset } from "lowdb/node";
 import lowdbStore from "connect-lowdb";
 import fs from "fs";
 import { fileURLToPath } from 'url';
-import { cardsData, gameloop } from "./physics/index.js";
+import cardsData from "./physics/index.js";
+import gameloop from "./physics/gameloop.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -41,19 +42,20 @@ passport.use(
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
-
+const db = await JSONFilePreset("db.json", null);
+const LowdbStore = lowdbStore(session);
 
 const sessionMiddleware = session({
   secret: process.env.SECRET,
   resave: false,
   saveUninitialized: false,
-  store: redisStore,
+  store: new LowdbStore({ db }),
 });
 app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use("/static", express.static(__dirname + "/public"));
-//app.use("/shared", express.static(__dirname + "/physics"));
+app.use("/shared", express.static(__dirname + "/physics"));
 
 // Routes
 app.get("/", (req, res) => {
@@ -159,6 +161,7 @@ let match = {
   hasStarted: false,
   timeStarted: 0,
   objects: [],
+  ticks: 0
 };
 
 function initialise(user, m) {
@@ -177,6 +180,32 @@ function initialise(user, m) {
 
   return user;
 }
+
+function travel(obj) {
+  let res = {}
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const value = obj[key];
+
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        res[key] = travel(value);
+      } else {
+        res[key] = value.toString();
+      }
+    }
+  }
+  return res
+}
+function enabler(obj) {
+  const data = "export default " + JSON.stringify(travel(obj), null, 2).replaceAll('"function(', "function(").replaceAll('}",', '},').replaceAll('\\n', '\n').replaceAll('\\"','"');
+
+  if (data.includes("Math.random(")) {
+    console.log("[WARNING] Please use game.random(min, max, noise) instead of Math.random(). This is to prevent server-client desync.");
+  }
+
+  return data;
+}
+fs.writeFileSync("./physics/cardsData.js", enabler(cardsData));
 
 // i have NO idea what this chunk does but its essential
 const wrap = (middleware) => (socket, next) =>
@@ -228,6 +257,8 @@ io.on("connection", (socket) => {
 
   socket.on("cheat2", () => {
     if (!user.admin) return;
+    // this happens so i can edit the code without restarting the server
+    // and mess with people
     console.log(`[CHEAT] ${user.username} forced everyone to re-log.`)
     io.emit("loginAgain");
   })
@@ -256,7 +287,7 @@ io.on("connection", (socket) => {
       
       io.emit("matchStarted", match);
       loop = setInterval(() => {
-        gameloop(match, userList);
+        match = gameloop(match, cardsData);
       }, 100)
       console.log(`[START] Match started!`);
     } else {

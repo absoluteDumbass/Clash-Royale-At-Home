@@ -11,11 +11,13 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "^18.0.6",
+    "connect-lowdb": "^3.1.0",
     "connect-redis": "^9.0.0",
     "connect-sqlite3": "^0.9.16",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
+    "lowdb": "^7.0.1",
     "node-fetch": "^3.2.6",
     "passport": "^0.7.0",
     "passport-discord": "^0.1.4",
