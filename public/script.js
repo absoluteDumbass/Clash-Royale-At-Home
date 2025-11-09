@@ -1,5 +1,5 @@
 import p5 from "https://esm.sh/p5@1.11.9";
-import gameloop from "../shared/gameloop.js";
+import { gameloop } from "../shared/gameloop.js";
 import cardsData from "../shared/cardsData.js";
 import { io } from "https://cdn.socket.io/4.7.5/socket.io.esm.min.js"
 const socket = io();
@@ -8,11 +8,11 @@ let loaded = false;
 let user = {};
 const UIdiv = document.getElementById("ui");
 let match = {};
-const gridSize = 22; // canonically 210 X and 210 Y, 10x 10y each tile
 let displaySize = 0;
 let isPlaying = false;
 let selected = 0;
 let draw = true;
+let side = 0; // side 0 is upper side, side 1 is lower side
 
 const randomFacts = [
   `Nerf miner`,
@@ -143,12 +143,10 @@ socket.on("userData", (syncData) => {
 
   if (match.players.includes(user.id)) {
     isPlaying = true;
+    side = match.players.indexOf(user.id)
   }
 
-  if (!loaded) {
-    UIset("mainmenu");
-    if (isPlaying) showGamestate();
-  }
+  if (!loaded) UIset("mainmenu");
   loaded = true;
   draw = true;
 });
@@ -165,22 +163,25 @@ socket.on("inMatchmaking", () => {
 socket.on("matchStarted", (m) => {
   match = m;
   if (match.players.includes(user.id)) {
-    socket.emit("gamestate")
+    socket.emit("gamestate");
     isPlaying = true;
+    side = match.players.indexOf(user.id)
   }
+})
+
+socket.on("ping", () => {
+  socket.emit("gamestate");
 })
 
 let gameInterval = 0
 socket.on("gamestate", (m, personal) => {
   match = m;
   user.game = personal;
-  isPlaying = true;
-  showGamestate();
+  if (isPlaying) showGamestate();
   if (gameInterval == 0) gameInterval = setInterval(() => {
     match = gameloop(match, cardsData);
-    console.log("drawing")
     draw = true;
-  }, 100);
+  }, 1000 / match.tickRate);
 });
 
 let interval = 0; // nothing yet
@@ -195,6 +196,7 @@ function showGamestate() {
 
   if (interval == 0) interval = setInterval(() => {
     showGamestate()
+    //console.log(match);
   }, 900);
 }
 
@@ -230,31 +232,62 @@ const sketch = (p) => {
 
     if (p.windowWidth < p.windowHeight) return;
     if (!loaded) return;
-    let s = displaySize / gridSize; // standard size
+    let s = displaySize / match.gridSize; // standard size
     p.stroke("rgba(0, 0, 0, 0.05)");
-    for (let x = 0; x < gridSize; x++) {
-      for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < match.gridSize; x++) {
+      for (let y = 0; y < match.gridSize; y++) {
         let c = p.color(130, 130, 130);
-        if (x == 0 || y == 0 || x == gridSize - 1 || y == gridSize - 1)
+        const percentX = x / match.gridSize;
+        const percentY = y / match.gridSize;
+        const isRiver = percentY >= 0.45 && percentY <= 0.55
+        // assume the grid is 100% width, 10% to 30% should be bridge, 70% to 90% should be bridge. the rest should be false
+        const isBridge = (percentX >= 0.15 && percentX <= 0.3) || (percentX >= 0.65 && percentX <= 0.8)
+
+        if (x == 0 || y == 0 || x == match.gridSize - 1 || y == match.gridSize - 1) {
           c = p.color(110, 110, 100);
+        } else if (isRiver && isBridge) {
+          c = p.color(127, 101, 61);
+        } else if (isRiver) {
+          c = p.color(100, 100, 200);
+        } else if ((x + y) % 2) {
+          c = p.color(135, 135, 135);
+        }
         p.fill(c);
         p.square(x * s, y * s, s);
       }
     }
-    let sa = 1 * displaySize / gridSize / 10; // stardard adjusted size. game coord to absolute coord
+    let sa = 1 * displaySize / match.gridSize / 10; // stardard adjusted size. game coord to absolute coord
 
+    //console.log(match)
     for (let i = 0; i < match.objects.length; i++) {
       const object = match.objects[i];
-      const card = cardsData[object.id];
+      if (object.dead) continue;
+      
+      const card = cardsData[object.cardId];
+      const offset = card.size / 2
       p.fill(card.color);
-      p.square(object.x * sa, object.y * sa, s * card.size);
+      p.square((object.x - offset) * sa, (object.y - offset)*sa, s * card.size/10);
+      // dot at center
+      p.fill(255, 255, 255);
+      p.circle(object.x * sa, object.y * sa, 3);
+
+      // health bar
+      if (!("hp" in object)) continue;
+      p.fill(55, 55, 55);
+      p.rect((object.x - offset) * sa, (object.y - offset) * sa - card.size/2-6, sa * card.size, 3);
+      if (object.owner != side) {
+        p.fill(255, 55, 55);
+      } else {
+        p.fill(55, 55, 255);
+      }
+      p.rect((object.x - offset) * sa, (object.y - offset) * sa - card.size/2-6, sa * card.size * (object.hp / card.maxhp), 3);
     }
   }
 
   p.mouseClicked = () => {
     if (p.mouseX < 0) return;
-    const clickedX = Math.floor((p.mouseX / displaySize) * gridSize) * 10;
-    const clickedY = Math.floor((p.mouseY / displaySize) * gridSize) * 10;
+    const clickedX = Math.floor((p.mouseX / displaySize) * match.gridSize) * 10;
+    const clickedY = Math.floor((p.mouseY / displaySize) * match.gridSize) * 10;
 
     console.log(`Clicked at (${clickedX}, ${clickedY})`);
     socket.emit("useElixir", user.game.cards[selected], clickedX, clickedY);
@@ -263,7 +296,6 @@ const sketch = (p) => {
 const P5 = new p5(sketch);
 
 function UIset(mode, fillIn = []) {
-  console.log(mode);
   let base = UImode[mode].split("@");
   if (mode == "mainmenu")
     fillIn = [randomFacts[Math.floor(Math.random() * randomFacts.length)]];
