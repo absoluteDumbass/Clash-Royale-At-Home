@@ -160,6 +160,7 @@ socket.on("inMatchmaking", () => {
   UIset("matchmaking");
 });
 
+let gameInterval = 0;
 socket.on("matchStarted", (m) => {
   match = m;
   if (match.players.includes(user.id)) {
@@ -167,21 +168,29 @@ socket.on("matchStarted", (m) => {
     isPlaying = true;
     side = match.players.indexOf(user.id)
   }
-})
-
-socket.on("ping", () => {
-  socket.emit("gamestate");
-})
-
-let gameInterval = 0
-socket.on("gamestate", (m, personal) => {
-  match = m;
-  user.game = personal;
-  if (isPlaying) showGamestate();
   if (gameInterval == 0) gameInterval = setInterval(() => {
     match = gameloop(match, cardsData);
     draw = true;
   }, 1000 / match.tickRate);
+});
+
+socket.on("matchEnded", () => {
+  UIset("mainmenu");
+  draw = true;
+  clearInterval(interval);
+  clearInterval(gameInterval);
+  isPlaying = false;
+  socket.emit("gamestate");
+})
+
+socket.on("ping", () => {
+  socket.emit("gamestate");
+});
+
+socket.on("gamestate", (m, personal) => {
+  match = m;
+  user.game = personal;
+  if (isPlaying) showGamestate();
 });
 
 let interval = 0; // nothing yet

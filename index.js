@@ -9,10 +9,11 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import c from 'chalk';
-import cardsData from './physics/index.js';
-import { gameloop, game } from './physics/gameloop.js';
 import dotenv from 'dotenv';
 dotenv.config();
+
+import cardsData from './physics/index.js';
+import { gameloop, game } from './physics/gameloop.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -313,7 +314,7 @@ function enabler(obj) {
   let data = 'export default ' + JSON.stringify(res[0], null, 2);
 
   for (let i = 0; i < res[1].length; i++) {
-    data = data.replace(`'FN_COMPILER_PLACEHOLDER_${i}'`, res[1][i]);
+    data = data.replace(`"FN_COMPILER_PLACEHOLDER_${i}"`, res[1][i]);
   }
 
   if (data.includes('Math.random(')) {
@@ -330,7 +331,8 @@ function enabler(obj) {
 
   return data;
 }
-console.log(`\n==========\n${c.green('Green')} means good.\n${c.blue('Blue')} means info.\n${c.yellow('Yellow')} means bad but handled.\n${c.bold.red('Red')} means high severity integrity risk.\n==========\n`)
+console.log(`\n==========\n${c.green('Green')} means good.\n${c.blue('Blue')} means info.\n${c.yellow('Yellow')} means bad but handled.\n${c.bold.red('Red')} means high severity integrity risk.\n==========\n`);
+
 const compiled = enabler(cardsData);
 fs.writeFileSync('./physics/cardsData.js', compiled);
 console.log(`${c.blue('[SUCCESS]')} Compiled cards data at ./physics/cardsData.js`);
@@ -434,7 +436,7 @@ io.on('connection', (socket) => {
           match.events = [];
           match.ticks = 0;
           match.timeStarted = 0;
-          io.emit('message', `Match ended!`);
+          io.emit('matchEnded');
         }
       }, 1000 / match.tickRate)
       console.log(`${c.green('[START]')} Match started!`);
@@ -459,8 +461,15 @@ io.on('connection', (socket) => {
 
   socket.on('useElixir', (id, x, y) => {
     if (!match.players.includes(user.id)) return;
-    const isAllowedToPlace = match.players.indexOf(user.id) ? (y < match.gridSize / 2 * 10) : (y > match.gridSize / 2 * 10)
-    if (cardsData[id].globalPlacement && isAllowedToPlace) return;
+    const isAllowedToPlace = match.players.indexOf(user.id) ? (y > (match.gridSize / 2 * 10)) : (y < (match.gridSize / 2 * 10))
+    if (!(cardsData[id].globalPlacement || isAllowedToPlace)) return;
+    if (user.game.cards.includes(id)) {
+      user.game.cards = user.game.cards.filter((card) => card !== id);
+      user.game.inCycle.push(id);
+      user.game.cards.push(user.game.inCycle.shift());
+    } else {
+      return;
+    }
     
     let elixir = Math.floor((Date.now() - match.timeStarted) / 1800) - user.game.elixirUsed;
     if (elixir > 10 && user.game.elixirUsed != Infinity) {
@@ -469,11 +478,6 @@ io.on('connection', (socket) => {
     }
 
     if (cardsData[id].cost > elixir) return;
-    if (user.game.cards.includes(id)) {
-      user.game.cards = user.game.cards.filter((card) => card !== id);
-      user.game.inCycle.push(id);
-      user.game.cards.push(user.game.inCycle.shift())
-    }
     user.game.elixirUsed += cardsData[id].cost;
     match.objects.push({
       cardId: id,
