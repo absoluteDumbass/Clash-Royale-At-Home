@@ -174,13 +174,15 @@ socket.on("matchStarted", (m) => {
   }, 1000 / match.tickRate);
 });
 
-socket.on("matchEnded", () => {
+socket.on("matchEnded", (m) => {
   UIset("mainmenu");
-  draw = true;
   clearInterval(interval);
   clearInterval(gameInterval);
   isPlaying = false;
-  socket.emit("gamestate");
+  match = m;
+  interval = 0;
+  gameInterval = 0;
+  draw = true;
 })
 
 socket.on("ping", () => {

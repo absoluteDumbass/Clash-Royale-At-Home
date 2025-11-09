@@ -268,7 +268,7 @@ const defaultObjects = [{
   hp: cardsData['crown_tower'].maxhp
 }];
 
-match.objects = defaultObjects;
+match.objects = structuredClone(defaultObjects);
 
 function initialise(user) {
   user.game = {
@@ -278,8 +278,7 @@ function initialise(user) {
     side: match.players[0] ? 0 : 1
   };
 
-  let deck = user.deck;
-  console.log(deck);
+  let deck = JSON.parse(JSON.stringify(user.deck));
   for (let i = 0; i < 4; i++) {
     user.game.inCycle.push(deck.pop());
   }
@@ -432,11 +431,14 @@ io.on('connection', (socket) => {
           match.hasStarted = false;
           match.players = [];
           match.usernames = [];
-          match.objects = defaultObjects;
+          match.end = false;
+          match.objects = structuredClone(defaultObjects);
           match.events = [];
           match.ticks = 0;
           match.timeStarted = 0;
-          io.emit('matchEnded');
+
+          console.log(`${c.green('[END]')} Match ended!`)
+          io.emit('matchEnded', match);
         }
       }, 1000 / match.tickRate)
       console.log(`${c.green('[START]')} Match started!`);

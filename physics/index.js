@@ -15,7 +15,7 @@ async function load(a) {
         const module = await import(`./cards/${a}`);
         return module.default;
     } catch (error) {
-        console.error('Error loading module:', error);
+        console.error(`${c.blue('[LOAD]')} Error loading module:`, error);
         return null
     }
 }
